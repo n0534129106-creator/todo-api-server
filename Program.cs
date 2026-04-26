@@ -56,12 +56,14 @@ app.UseAuthorization();  // חובה! בודק "מה מותר למשתמש"
 // ... ואז מגיעים ה-MapGet וה-MapPost
 
 // יצירת הסווגר רק אם הסביבה היא לפיתוח
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
 
-}
+app.UseSwagger();
+app.UseSwaggerUI();
+app.UseCors("AllowAll"); // קודם כל CORS
+
+app.UseAuthentication(); 
+app.UseAuthorization();
+
 
 // 1. שליפת כל המשימות
 // 1. שליפת משימות - פתוח לכולם
