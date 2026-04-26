@@ -5,72 +5,72 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("ToDoDB");
-builder.Services.AddEndpointsApiExplorer();//לסווגר
+
+// 1. שירותים בסיסיים
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-//ה cors
+
+// 2. הגדרת ה-CORS (חייב להישאר כאן)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()   // מאפשר לכל כתובת לגשת
-             .AllowAnyMethod()   // מאפשר את כל הפעולות (GET, POST, וכו')
-            .AllowAnyHeader();  // מאפשר את כל סוגי ה-Headers
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
     });
 });
-//mysql חיבור ל
+
+// 3. חיבור למסד נתונים
 builder.Services.AddDbContext<ToDoDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
-
-// 1.   הגדרת המפתח הסודי - ה"מפתח" שבאמצעותו השרת חותם על הטוקנים ומאמת אותם
+// 4. הגדרת JWT
 var key = Encoding.ASCII.GetBytes("ThisIsMyVerySecretKeyForJwt1234567890"); 
 
-// 2. הוספת שירותי אימות (Authentication) לפרויקט
 builder.Services.AddAuthentication(options =>
 {
-    // הגדרת JWT כשיטה ברירת המחדל לזיהוי משתמשים
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;//חפש בheader
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;//אם לא תקין החזרה של 401
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
 .AddJwtBearer(options =>
 {
-    // הגדרת החוקים לאימות הטוקן שמגיע מהקליאנט
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuerSigningKey = true, // בדיקה שהטוקן נחתם עם המפתח הסודי שלנו
-        IssuerSigningKey = new SymmetricSecurityKey(key), // המפתח שבו משתמשים לאימות
-        ValidateIssuer = false, //  לא בודקים מי הנפיק את הטוקן
-        ValidateAudience = false //  לא בודקים למי יועד הטוקן
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ValidateIssuer = false,
+        ValidateAudience = false
     };
 });
 
-// 3. הוספת שירותי הרשאות (Authorization) - מאפשר לנעול נתיבים ספציפיים
 builder.Services.AddAuthorization();
+
 var app = builder.Build();
-    app.UseCors("AllowAll");
-app.UseAuthentication(); // חובה! בודק "מי המשתמש" לפי הטוקן
-app.UseAuthorization();  // חובה! בודק "מה מותר למשתמש"
 
-// ... ואז מגיעים ה-MapGet וה-MapPost
+// --- סדר ה-MIDDLEWARE (החלק הכי חשוב!) ---
 
-// יצירת הסווגר רק אם הסביבה היא לפיתוח
-
+// א. סווגר תמיד פעיל (גם ב-Production)
 app.UseSwagger();
 app.UseSwaggerUI();
-app.UseCors("AllowAll"); // קודם כל CORS
 
-app.UseAuthentication(); 
+// ב. CORS תמיד ראשון!
+app.UseCors("AllowAll");
+
+// ג. אבטחה (סדר קבוע: אימות ואז הרשאות)
+app.UseAuthentication();
 app.UseAuthorization();
 
+// --- הגדרת ה-ROUTES ---
 
-// 1. שליפת כל המשימות
-// 1. שליפת משימות - פתוח לכולם
+app.MapGet("/", () => "Server is running!"); // בדיקה מהירה שהשרת חי
+
 app.MapGet("/items", async (ToDoDbContext db) =>
     await db.Items.ToListAsync());
 
-// 2. הוספת משימה - נעול! (מופיע רק פעם אחת עם ה-RequireAuthorization)
 app.MapPost("/items", async (ToDoDbContext db, Item item) =>
 {
     db.Items.Add(item);
@@ -78,7 +78,6 @@ app.MapPost("/items", async (ToDoDbContext db, Item item) =>
     return Results.Created($"/items/{item.Id}", item);
 }).RequireAuthorization(); 
 
-// 3. עדכון משימה - נעול!
 app.MapPut("/items/{id}", async (ToDoDbContext db, int id, Item inputItem) =>
 {
     var item = await db.Items.FindAsync(id);
@@ -89,7 +88,6 @@ app.MapPut("/items/{id}", async (ToDoDbContext db, int id, Item inputItem) =>
     return Results.NoContent();
 }).RequireAuthorization();
 
-// 4. מחיקת משימה - נעול!
 app.MapDelete("/items/{id}", async (ToDoDbContext db, int id) =>
 {
     if (await db.Items.FindAsync(id) is Item item)
@@ -101,7 +99,6 @@ app.MapDelete("/items/{id}", async (ToDoDbContext db, int id) =>
     return Results.NotFound();
 }).RequireAuthorization();
 
-// 5. לוגין - חייב להישאר פתוח!
 app.MapPost("/login", (User user, ToDoDbContext db) => {
     var dbUser = db.Users.FirstOrDefault(u => u.Username == user.Username && u.Password == user.Password);
     if (dbUser == null) return Results.Unauthorized();
@@ -116,9 +113,9 @@ app.MapPost("/login", (User user, ToDoDbContext db) => {
     var token = tokenHandler.CreateToken(tokenDescriptor);
     return Results.Ok(new { token = tokenHandler.WriteToken(token) });
 });
+
 app.MapPost("/register", async (ToDoDbContext db, User user) =>
 {
-    // בדיקה אם המשתמש כבר קיים
     var existingUser = await db.Users.FirstOrDefaultAsync(u => u.Username == user.Username);
     if (existingUser != null)
         return Results.BadRequest("משתמש זה כבר קיים במערכת");
