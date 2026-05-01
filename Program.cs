@@ -25,8 +25,11 @@ builder.Services.AddCors(options =>
 });
 
 // 3. חיבור למסד נתונים
+// 3. חיבור למסד נתונים - הגדרה ידנית של הגרסה כדי למנוע קריסה ב-Render
+var serverVersion = new MySqlServerVersion(new Version(8, 0, 36)); // גרסה נפוצה ב-Clever Cloud
+
 builder.Services.AddDbContext<ToDoDbContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+    options.UseMySql(connectionString, serverVersion));
 
 // 4. הגדרת JWT
 var key = Encoding.ASCII.GetBytes("ThisIsMyVerySecretKeyForJwt1234567890"); 
