@@ -7,8 +7,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("ToDoDB");
-
+var connectionString = "server=bvfik6bgrkqvhasq2kjo-mysql.services.clever-cloud.com;database=bvfik6bgrkqvhasq2kjo;user=uiwhww9ubg2vfdp0;password=oBQNrpBsdlhKyaLRlRy3;port=3306";
+Console.WriteLine($"Connection String length: {connectionString?.Length ?? 0}");
 // 1. שירותים בסיסיים
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
