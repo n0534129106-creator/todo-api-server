@@ -14,44 +14,29 @@ var database = Environment.GetEnvironmentVariable("DB_NAME");
 var user = Environment.GetEnvironmentVariable("DB_USER");
 var password = Environment.GetEnvironmentVariable("DB_PASSWORD");
 
-// Try to get connection string from configuration (appsettings) first
-string connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? builder.Configuration["ConnectionStrings:DefaultConnection"];
-
-// If environment variables are provided, prefer building the connection string from them
-if (!string.IsNullOrWhiteSpace(host))
+if (string.IsNullOrWhiteSpace(host))
 {
-    var missingEnv = new List<string>();
-    if (string.IsNullOrWhiteSpace(database)) missingEnv.Add("DB_NAME");
-    if (string.IsNullOrWhiteSpace(user)) missingEnv.Add("DB_USER");
-    if (string.IsNullOrWhiteSpace(password)) missingEnv.Add("DB_PASSWORD");
-
-    if (missingEnv.Count > 0)
-    {
-        throw new InvalidOperationException($"DB_HOST is set, but missing required environment variables: {string.Join(", ", missingEnv)}. Set DB_NAME, DB_USER, DB_PASSWORD too.");
-    }
-
-    connectionString = $"server={host};port={port};database={database};user={user};password={password};SslMode=Required;";
-    Console.WriteLine("Using DB connection from environment variables (Render style).");
-    Console.WriteLine($"DB_HOST={host};DB_NAME={database};DB_USER={user};DB_PORT={port}");
-}
-else
-{
-    Console.WriteLine("Using DB connection from configuration DefaultConnection.");
-    if (!string.IsNullOrWhiteSpace(connectionString))
-    {
-        Console.WriteLine("Loaded DefaultConnection from configuration.");
-    }
+    throw new InvalidOperationException("DB_HOST is not set. Render must provide DB_HOST, DB_NAME, DB_USER, DB_PASSWORD and optionally DB_PORT.");
 }
 
-if (string.IsNullOrWhiteSpace(connectionString))
+var missingEnv = new List<string>();
+if (string.IsNullOrWhiteSpace(database)) missingEnv.Add("DB_NAME");
+if (string.IsNullOrWhiteSpace(user)) missingEnv.Add("DB_USER");
+if (string.IsNullOrWhiteSpace(password)) missingEnv.Add("DB_PASSWORD");
+
+if (missingEnv.Count > 0)
 {
-    throw new InvalidOperationException("No database connection string configured. Set ConnectionStrings__DefaultConnection or DB_HOST/DB_NAME/DB_USER/DB_PASSWORD.");
+    throw new InvalidOperationException($"Missing required DB environment variables: {string.Join(", ", missingEnv)}.");
 }
+
+var connectionString = $"server={host};port={port};database={database};user={user};password={password};SslMode=Required;";
+Console.WriteLine("Using DB connection from environment variables (Render style).");
+Console.WriteLine($"DB_HOST={host}; DB_NAME={database}; DB_USER={user}; DB_PORT={port}");
+Console.WriteLine($"Final connection string: server={host};port={port};database={database};user={user};password=***;SslMode=Required;");
 
 if (connectionString.IndexOf("name=", StringComparison.OrdinalIgnoreCase) >= 0)
 {
-    throw new InvalidOperationException($"Invalid MySQL connection string: unsupported option 'name'. Connection string value: '{connectionString}'. Remove 'name=...' from the connection string.");
+    throw new InvalidOperationException("Invalid MySQL connection string: unsupported option 'name'. Remove 'name=...' from the connection string.");
 }
 
 var serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
