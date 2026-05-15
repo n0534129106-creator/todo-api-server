@@ -29,8 +29,20 @@ if (missingEnv.Count > 0)
     throw new InvalidOperationException($"Missing required DB environment variables: {string.Join(", ", missingEnv)}.");
 }
 
-var connectionString = $"server={host};port={port};database={database};user={user};password={password};SslMode=Required;";
-Console.WriteLine("Using DB connection from environment variables (Render style).");
+var builderString = new MySqlConnector.MySqlConnectionStringBuilder();
+builderString.Server = host;
+builderString.Port = uint.Parse(port);
+builderString.Database = database;
+builderString.UserID = user;
+builderString.Password = password;
+builderString.SslMode = MySqlConnector.MySqlSslMode.Required;
+
+string connectionString = builderString.ConnectionString;
+
+// הדפסה שתופיע בודאות בלוגים
+Console.WriteLine("********************************");
+Console.WriteLine("DEPLOYING VERSION: SUPER_CLEAN_V3");
+Console.WriteLine("********************************");Console.WriteLine("Using DB connection from environment variables (Render style).");
 Console.WriteLine($"DB_HOST={host}; DATABASE_IDENTIFIER={database}; DB_USER={user}; DB_PORT={port}");
 Console.WriteLine($"Final connection string: server={host};port={port};database={database};user={user};password=***;SslMode=Required;");
 
