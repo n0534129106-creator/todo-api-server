@@ -7,6 +7,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
+Console.WriteLine("--- !!! ATTENTION: RUNNING VERSION 10.0 - NO MORE ERRORS !!! ---");
 Console.WriteLine("--- ATTENTION: DEPLOYING VERSION 7.0 - THE CLEANER ---");
 // לוג כדי לראות ב-Render שהקוד החדש רץ
 Console.WriteLine("--- !!! REBOOT VERSION 6.0 - MANUAL CONNECTION ONLY !!! ---");
