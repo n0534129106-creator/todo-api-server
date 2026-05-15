@@ -2862,11 +2862,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "E:\\פרקטיקוד\\פרקטיקוד-2\\TodoApi\\TodoApi.csproj",
+      "projectUniqueName": "e:\\פרקטיקוד\\פרקטיקוד-2\\project3\\TodoApi\\TodoApi.csproj",
       "projectName": "TodoApi",
-      "projectPath": "E:\\פרקטיקוד\\פרקטיקוד-2\\TodoApi\\TodoApi.csproj",
+      "projectPath": "e:\\פרקטיקוד\\פרקטיקוד-2\\project3\\TodoApi\\TodoApi.csproj",
       "packagesPath": "C:\\Users\\This User\\.nuget\\packages\\",
-      "outputPath": "E:\\פרקטיקוד\\פרקטיקוד-2\\TodoApi\\obj\\",
+      "outputPath": "e:\\פרקטיקוד\\פרקטיקוד-2\\project3\\TodoApi\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

@@ -7,69 +7,104 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
-var connectionString = "server=bvfik6bgrkqvhasq2kjo-mysql.services.clever-cloud.com;database=bvfik6bgrkqvhasq2kjo;user=uiwhww9ubg2vfdp0;password=oBQNrpBsdlhKyaLRlRy3;port=3306";
-Console.WriteLine($"Connection String length: {connectionString?.Length ?? 0}");
-// 1. שירותים בסיסיים
+
+var host = Environment.GetEnvironmentVariable("DB_HOST");
+var port = Environment.GetEnvironmentVariable("DB_PORT") ?? "3306";
+var database = Environment.GetEnvironmentVariable("DB_NAME");
+var user = Environment.GetEnvironmentVariable("DB_USER");
+var password = Environment.GetEnvironmentVariable("DB_PASSWORD");
+
+// Try to get connection string from configuration (appsettings) first
+string connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? builder.Configuration["ConnectionStrings:DefaultConnection"];
+
+// If environment variables are provided, prefer building the connection string from them
+if (!string.IsNullOrWhiteSpace(host))
+{
+    var missingEnv = new List<string>();
+    if (string.IsNullOrWhiteSpace(database)) missingEnv.Add("DB_NAME");
+    if (string.IsNullOrWhiteSpace(user)) missingEnv.Add("DB_USER");
+    if (string.IsNullOrWhiteSpace(password)) missingEnv.Add("DB_PASSWORD");
+
+    if (missingEnv.Count > 0)
+    {
+        throw new InvalidOperationException($"DB_HOST is set, but missing required environment variables: {string.Join(", ", missingEnv)}. Set DB_NAME, DB_USER, DB_PASSWORD too.");
+    }
+
+    connectionString = $"server={host};port={port};database={database};user={user};password={password};SslMode=Required;";
+    Console.WriteLine("Using DB connection from environment variables (Render style).");
+    Console.WriteLine($"DB_HOST={host};DB_NAME={database};DB_USER={user};DB_PORT={port}");
+}
+else
+{
+    Console.WriteLine("Using DB connection from configuration DefaultConnection.");
+    if (!string.IsNullOrWhiteSpace(connectionString))
+    {
+        Console.WriteLine("Loaded DefaultConnection from configuration.");
+    }
+}
+
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException("No database connection string configured. Set ConnectionStrings__DefaultConnection or DB_HOST/DB_NAME/DB_USER/DB_PASSWORD.");
+}
+
+if (connectionString.IndexOf("name=", StringComparison.OrdinalIgnoreCase) >= 0)
+{
+    throw new InvalidOperationException($"Invalid MySQL connection string: unsupported option 'name'. Connection string value: '{connectionString}'. Remove 'name=...' from the connection string.");
+}
+
+var serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
+// זה מבטל כל הגדרה אוטומטית ומשתמש רק במה שאנחנו בונים ידנית
+builder.Services.AddDbContext<ToDoDbContext>(options =>
+{
+    var serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
+    options.UseMySql(connectionString, serverVersion);
+}, ServiceLifetime.Scoped); // הוספת Scope מוודאת שה-Context נוצר מחדש בכל בקשה
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// 2. הגדרת ה-CORS (חייב להישאר כאן)
 builder.Services.AddCors(options =>
-{
     options.AddPolicy("AllowAll", policy =>
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+
+var key = Encoding.ASCII.GetBytes("ThisIsMyVerySecretKeyForJwt1234567890");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(key),
+            ValidateIssuer = false,
+            ValidateAudience = false
+        };
     });
-});
-
-// 3. חיבור למסד נתונים
-// 3. חיבור למסד נתונים - הגדרה ידנית של הגרסה כדי למנוע קריסה ב-Render
-var serverVersion = new MySqlServerVersion(new Version(8, 0, 36)); // גרסה נפוצה ב-Clever Cloud
-
-builder.Services.AddDbContext<ToDoDbContext>(options =>
-    options.UseMySql(connectionString, serverVersion));
-
-// 4. הגדרת JWT
-var key = Encoding.ASCII.GetBytes("ThisIsMyVerySecretKeyForJwt1234567890"); 
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = false,
-        ValidateAudience = false
-    };
-});
 
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// --- סדר ה-MIDDLEWARE (החלק הכי חשוב!) ---
+try
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ToDoDbContext>();
+    db.Database.EnsureCreated();
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Database initialization failed: {ex.Message}");
+}
 
-// א. סווגר תמיד פעיל (גם ב-Production)
 app.UseSwagger();
 app.UseSwaggerUI();
-
-// ב. CORS תמיד ראשון!
 app.UseCors("AllowAll");
-
-// ג. אבטחה (סדר קבוע: אימות ואז הרשאות)
 app.UseAuthentication();
 app.UseAuthorization();
 
-// --- הגדרת ה-ROUTES ---
-
-app.MapGet("/", () => "Server is running!"); // בדיקה מהירה שהשרת חי
+app.MapGet("/", () => "Server is running!");
 
 app.MapGet("/items", async (ToDoDbContext db) =>
     await db.Items.ToListAsync());
@@ -79,7 +114,7 @@ app.MapPost("/items", async (ToDoDbContext db, Item item) =>
     db.Items.Add(item);
     await db.SaveChangesAsync();
     return Results.Created($"/items/{item.Id}", item);
-}).RequireAuthorization(); 
+}).RequireAuthorization();
 
 app.MapPut("/items/{id}", async (ToDoDbContext db, int id, Item inputItem) =>
 {
@@ -102,7 +137,8 @@ app.MapDelete("/items/{id}", async (ToDoDbContext db, int id) =>
     return Results.NotFound();
 }).RequireAuthorization();
 
-app.MapPost("/login", (User user, ToDoDbContext db) => {
+app.MapPost("/login", (User user, ToDoDbContext db) =>
+{
     var dbUser = db.Users.FirstOrDefault(u => u.Username == user.Username && u.Password == user.Password);
     if (dbUser == null) return Results.Unauthorized();
 
