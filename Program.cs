@@ -10,17 +10,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 var host = Environment.GetEnvironmentVariable("DB_HOST");
 var port = Environment.GetEnvironmentVariable("DB_PORT") ?? "3306";
-var database = Environment.GetEnvironmentVariable("DB_NAME");
+var database = Environment.GetEnvironmentVariable("DATABASE_IDENTIFIER");
 var user = Environment.GetEnvironmentVariable("DB_USER");
 var password = Environment.GetEnvironmentVariable("DB_PASSWORD");
 
 if (string.IsNullOrWhiteSpace(host))
 {
-    throw new InvalidOperationException("DB_HOST is not set. Render must provide DB_HOST, DB_NAME, DB_USER, DB_PASSWORD and optionally DB_PORT.");
+    throw new InvalidOperationException("DB_HOST is not set. Render must provide DB_HOST, DATABASE_IDENTIFIER, DB_USER, DB_PASSWORD and optionally DB_PORT.");
 }
 
 var missingEnv = new List<string>();
-if (string.IsNullOrWhiteSpace(database)) missingEnv.Add("DB_NAME");
+if (string.IsNullOrWhiteSpace(database)) missingEnv.Add("DATABASE_IDENTIFIER");
 if (string.IsNullOrWhiteSpace(user)) missingEnv.Add("DB_USER");
 if (string.IsNullOrWhiteSpace(password)) missingEnv.Add("DB_PASSWORD");
 
@@ -31,7 +31,7 @@ if (missingEnv.Count > 0)
 
 var connectionString = $"server={host};port={port};database={database};user={user};password={password};SslMode=Required;";
 Console.WriteLine("Using DB connection from environment variables (Render style).");
-Console.WriteLine($"DB_HOST={host}; DB_NAME={database}; DB_USER={user}; DB_PORT={port}");
+Console.WriteLine($"DB_HOST={host}; DATABASE_IDENTIFIER={database}; DB_USER={user}; DB_PORT={port}");
 Console.WriteLine($"Final connection string: server={host};port={port};database={database};user={user};password=***;SslMode=Required;");
 
 if (connectionString.IndexOf("name=", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -41,11 +41,16 @@ if (connectionString.IndexOf("name=", StringComparison.OrdinalIgnoreCase) >= 0)
 
 var serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
 // זה מבטל כל הגדרה אוטומטית ומשתמש רק במה שאנחנו בונים ידנית
+// במקום מה שיש לך עכשיו, תשתמשי בזה:
 builder.Services.AddDbContext<ToDoDbContext>(options =>
 {
-    var serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
-    options.UseMySql(connectionString, serverVersion);
-}, ServiceLifetime.Scoped); // הוספת Scope מוודאת שה-Context נוצר מחדש בכל בקשה
+    var myServerVersion = new MySqlServerVersion(new Version(8, 0, 36));
+    // אנחנו מעבירים את המחרוזת שבנינו למעלה בצורה מפורשת
+    options.UseMySql(connectionString, myServerVersion, mysqlOptions => 
+    {
+        mysqlOptions.EnableRetryOnFailure();
+    });
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
